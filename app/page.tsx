@@ -670,7 +670,7 @@ export default function InteractiveDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center border-l border-slate-700 pl-6 overflow-x-auto scrollbar-hide py-2">
+        <div className="flex items-center  overflow-x-auto scrollbar-hide py-2">
           {/* TOMBOL SHARE DI SEBELAH KIRI (HANYA IKON) */}
           <button
             onClick={handleShare}
@@ -695,8 +695,7 @@ export default function InteractiveDashboard() {
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
           </button>
-
-          <div className="flex gap-4">
+          <div className="flex gap-4 border-l border-slate-700 pl-4">
             <div
               className="drag-sidebar-item grid-stack-item cursor-grab active:cursor-grabbing shrink-0"
               gs-w="3"
