@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "gridstack/dist/gridstack.min.css";
 import { supabase } from "@/lib/supabase";
-import { GridStack } from "gridstack";
+import { GridStack, GridStackWidget } from "gridstack";
 import {
   LineChart,
   Line,
@@ -20,8 +20,34 @@ import {
   Legend,
 } from "recharts";
 
+// --- TYPE DEFINITIONS ---
+interface DashboardWidget {
+  id: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  type: string | null;
+  title: string;
+  value: string | number;
+  variant: string;
+  dataKey: string;
+  chartColor: string;
+  chartLayout: "horizontal" | "vertical";
+  pieTheme: string;
+  textAlign: "left" | "center" | "right";
+}
+
+interface EditModalState extends Omit<
+  DashboardWidget,
+  "id" | "x" | "y" | "w" | "h"
+> {
+  visible: boolean;
+  widgetId: string | null;
+}
+
 // --- SUMBER DATA JSON (MOCK DATA) ---
-const DASHBOARD_DATA_JSON = {
+const DASHBOARD_DATA_JSON: Record<string, string | number> = {
   ROP: 4.5,
   WOB: 15.2,
   RPM: 120,
@@ -54,35 +80,35 @@ const dataTable = [
   { id: "LOG-006", time: "06:10 PM", status: "Warning", operator: "Siti" },
 ];
 
-const CHART_COLORS = {
+const CHART_COLORS: Record<string, string> = {
   blue: "#3b82f6",
   emerald: "#10b981",
   orange: "#f97316",
   rose: "#e11d48",
 };
 
-const PIE_THEMES = {
+const PIE_THEMES: Record<string, string[]> = {
   default: ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"],
   cool: ["#6366f1", "#8b5cf6", "#d946ef", "#ec4899"],
   monochrome: ["#94a3b8", "#64748b", "#475569", "#334155"],
 };
 
 export default function InteractiveDashboard() {
-  const gridRef = useRef(null);
-  const gridInstance = useRef(null);
-  const [widgets, setWidgets] = useState([]);
+  // PENTING: Tambahkan tipe untuk useRef
+  const gridRef = useRef<HTMLDivElement>(null);
+  const gridInstance = useRef<GridStack | null>(null);
 
-  // STATE BARU: Untuk melacak status tombol copy
+  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [isCopied, setIsCopied] = useState(false);
 
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
     y: 0,
-    widgetId: null,
+    widgetId: null as string | null,
   });
 
-  const [editModal, setEditModal] = useState({
+  const [editModal, setEditModal] = useState<EditModalState>({
     visible: false,
     widgetId: null,
     type: "",
@@ -102,7 +128,8 @@ export default function InteractiveDashboard() {
   });
 
   useEffect(() => {
-    if (!gridInstance.current) {
+    // PENTING: Pengecekan agar gridRef.current tidak bernilai null
+    if (!gridInstance.current && gridRef.current) {
       gridInstance.current = GridStack.init(
         {
           cellHeight: 80,
@@ -115,58 +142,63 @@ export default function InteractiveDashboard() {
         gridRef.current,
       );
 
-      gridInstance.current.on("dropped", (event, previousWidget, newWidget) => {
-        const widgetType = newWidget.el.getAttribute("data-type");
-        gridInstance.current.removeWidget(newWidget.el);
+      gridInstance.current.on(
+        "dropped",
+        (event: Event, previousWidget: any, newWidget: any) => {
+          if (!newWidget.el) return;
 
-        const defaultKey = Object.keys(DASHBOARD_DATA_JSON)[0];
-        let defaultTitle = "";
-        let defaultValue = "";
-        let defaultVariant = "default";
-        let defaultDataKey = "utama";
-        let defaultChartColor = "blue";
-        let defaultPieTheme = "default";
-        let defaultChartLayout = "horizontal";
-        let defaultTextAlign = "left";
+          const widgetType = newWidget.el.getAttribute("data-type");
+          gridInstance.current?.removeWidget(newWidget.el);
 
-        if (widgetType === "stats") {
-          defaultTitle = defaultKey;
-          defaultValue = DASHBOARD_DATA_JSON[defaultKey];
-        } else if (widgetType === "chart") {
-          defaultTitle = "Production Trend (Line)";
-        } else if (widgetType === "bar") {
-          defaultTitle = "Production per Rig (Bar)";
-          defaultChartColor = "emerald";
-        } else if (widgetType === "pie") {
-          defaultTitle = "Area Distribution";
-        } else if (widgetType === "table") {
-          defaultTitle = "Operational Log";
-        } else if (widgetType === "text") {
-          defaultTitle = "Note Title";
-          defaultValue = "Type note content here...";
-          defaultVariant = "note";
-        }
+          const defaultKey = Object.keys(DASHBOARD_DATA_JSON)[0];
+          let defaultTitle = "";
+          let defaultValue: string | number = "";
+          let defaultVariant = "default";
+          let defaultDataKey = "utama";
+          let defaultChartColor = "blue";
+          let defaultPieTheme = "default";
+          let defaultChartLayout: "horizontal" | "vertical" = "horizontal";
+          let defaultTextAlign: "left" | "center" | "right" = "left";
 
-        setWidgets((prev) => [
-          ...prev,
-          {
-            id: `widget-${Date.now()}`,
-            x: newWidget.x,
-            y: newWidget.y,
-            w: newWidget.w || 3,
-            h: newWidget.h || 2,
-            type: widgetType,
-            title: defaultTitle,
-            value: defaultValue,
-            variant: defaultVariant,
-            dataKey: defaultDataKey,
-            chartColor: defaultChartColor,
-            chartLayout: defaultChartLayout,
-            pieTheme: defaultPieTheme,
-            textAlign: defaultTextAlign,
-          },
-        ]);
-      });
+          if (widgetType === "stats") {
+            defaultTitle = defaultKey;
+            defaultValue = DASHBOARD_DATA_JSON[defaultKey];
+          } else if (widgetType === "chart") {
+            defaultTitle = "Production Trend (Line)";
+          } else if (widgetType === "bar") {
+            defaultTitle = "Production per Rig (Bar)";
+            defaultChartColor = "emerald";
+          } else if (widgetType === "pie") {
+            defaultTitle = "Area Distribution";
+          } else if (widgetType === "table") {
+            defaultTitle = "Operational Log";
+          } else if (widgetType === "text") {
+            defaultTitle = "Note Title";
+            defaultValue = "Type note content here...";
+            defaultVariant = "note";
+          }
+
+          setWidgets((prev) => [
+            ...prev,
+            {
+              id: `widget-${Date.now()}`,
+              x: newWidget.x,
+              y: newWidget.y,
+              w: newWidget.w || 3,
+              h: newWidget.h || 2,
+              type: widgetType,
+              title: defaultTitle,
+              value: defaultValue,
+              variant: defaultVariant,
+              dataKey: defaultDataKey,
+              chartColor: defaultChartColor,
+              chartLayout: defaultChartLayout,
+              pieTheme: defaultPieTheme,
+              textAlign: defaultTextAlign,
+            },
+          ]);
+        },
+      );
     }
   }, []);
 
@@ -186,13 +218,13 @@ export default function InteractiveDashboard() {
       ".grid-stack-item:not(.gs-init)",
     );
     uninitializedItems.forEach((item) => {
-      // TAMBAHKAN 'as HTMLElement' DI BARIS BAWAH INI:
+      // PENTING: as HTMLElement agar TypeScript tidak protes
       gridInstance.current?.makeWidget(item as HTMLElement);
       item.classList.add("gs-init");
     });
   }, [widgets]);
 
-  const handleContextMenu = (e, id) => {
+  const handleContextMenu = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     setContextMenu({
       visible: true,
@@ -220,15 +252,15 @@ export default function InteractiveDashboard() {
       setEditModal({
         visible: true,
         widgetId: targetWidget.id,
-        type: targetWidget.type,
-        title: targetWidget.title || "",
-        value: targetWidget.value || "",
-        variant: targetWidget.variant || "default",
-        dataKey: targetWidget.dataKey || "utama",
-        chartColor: targetWidget.chartColor || "blue",
-        chartLayout: targetWidget.chartLayout || "horizontal",
-        pieTheme: targetWidget.pieTheme || "default",
-        textAlign: targetWidget.textAlign || "left",
+        type: targetWidget.type || "",
+        title: targetWidget.title,
+        value: String(targetWidget.value),
+        variant: targetWidget.variant,
+        dataKey: targetWidget.dataKey,
+        chartColor: targetWidget.chartColor,
+        chartLayout: targetWidget.chartLayout,
+        pieTheme: targetWidget.pieTheme,
+        textAlign: targetWidget.textAlign,
       });
     }
     setContextMenu({ visible: false, x: 0, y: 0, widgetId: null });
@@ -268,14 +300,12 @@ export default function InteractiveDashboard() {
   };
 
   const handleShare = async () => {
-    // 1. SINKRONISASI KOORDINAT: Ambil posisi X, Y, W, H terbaru langsung dari DOM GridStack
     let currentWidgets = [...widgets];
     if (gridInstance.current) {
-      const gridNodes = gridInstance.current.save(); // Fungsi bawaan GridStack
+      const gridNodes = gridInstance.current.save() as GridStackWidget[];
       currentWidgets = currentWidgets.map((w) => {
         const nodeInfo = gridNodes.find((n) => String(n.id) === String(w.id));
         if (nodeInfo) {
-          // Update state lama dengan koordinat baru sebelum disimpan
           return {
             ...w,
             x: nodeInfo.x,
@@ -286,13 +316,11 @@ export default function InteractiveDashboard() {
         }
         return w;
       });
-      // (Opsional) Update state React juga agar tidak ada perbedaan
       setWidgets(currentWidgets);
     }
 
     const uniqueId = "v_" + Math.random().toString(36).substring(2, 11);
 
-    // 2. Simpan data yang sudah di-sync ke Supabase
     const { error } = await supabase
       .from("dashboards")
       .insert([{ id: uniqueId, config: currentWidgets }]);
@@ -307,7 +335,7 @@ export default function InteractiveDashboard() {
     setShareModal({ visible: true, link: `${baseUrl}/${uniqueId}` });
   };
 
-  const renderWidgetContent = (widget) => {
+  const renderWidgetContent = (widget: DashboardWidget) => {
     if (widget.type === "stats") {
       return (
         <div className="flex h-full w-full items-center justify-center p-6 cursor-move drag-handle">
@@ -453,7 +481,7 @@ export default function InteractiveDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               {widget.type === "chart" ? (
                 <LineChart
-                  layout={widget.chartLayout || "horizontal"}
+                  layout={widget.chartLayout}
                   data={dataChart}
                   margin={chartMargin}
                 >
@@ -495,8 +523,14 @@ export default function InteractiveDashboard() {
                   />
                   <Line
                     type="monotone"
-                    dataKey={widget.dataKey || "utama"}
-                    name={widget.dataKey || "Primary"}
+                    dataKey={widget.dataKey}
+                    name={
+                      widget.dataKey === "utama"
+                        ? "Primary"
+                        : widget.dataKey === "sekunder"
+                          ? "Secondary"
+                          : "Target"
+                    }
                     stroke={activeColor}
                     strokeWidth={3}
                     dot={{ r: 4, strokeWidth: 2, fill: "#0f172a" }}
@@ -505,7 +539,7 @@ export default function InteractiveDashboard() {
                 </LineChart>
               ) : (
                 <BarChart
-                  layout={widget.chartLayout || "horizontal"}
+                  layout={widget.chartLayout}
                   data={dataChart}
                   margin={chartMargin}
                 >
@@ -547,8 +581,14 @@ export default function InteractiveDashboard() {
                     labelStyle={{ fontWeight: "bold", color: "#f8fafc" }}
                   />
                   <Bar
-                    dataKey={widget.dataKey || "utama"}
-                    name={widget.dataKey || "Primary"}
+                    dataKey={widget.dataKey}
+                    name={
+                      widget.dataKey === "utama"
+                        ? "Primary"
+                        : widget.dataKey === "sekunder"
+                          ? "Secondary"
+                          : "Target"
+                    }
                     fill={activeColor}
                     radius={isVertical ? [0, 4, 4, 0] : [4, 4, 0, 0]}
                     barSize={20}
@@ -834,7 +874,9 @@ export default function InteractiveDashboard() {
                         onChange={(e) =>
                           setEditModal({
                             ...editModal,
-                            chartLayout: e.target.value,
+                            chartLayout: e.target.value as
+                              | "horizontal"
+                              | "vertical",
                           })
                         }
                       >
@@ -945,7 +987,10 @@ export default function InteractiveDashboard() {
                         onChange={(e) =>
                           setEditModal({
                             ...editModal,
-                            textAlign: e.target.value,
+                            textAlign: e.target.value as
+                              | "left"
+                              | "center"
+                              | "right",
                           })
                         }
                       >
@@ -961,7 +1006,7 @@ export default function InteractiveDashboard() {
                         Text Content / Description
                       </label>
                       <textarea
-                        rows="4"
+                        rows={4}
                         className="w-full bg-slate-800 border border-slate-700 text-slate-300 font-medium rounded-xl block p-3.5 focus:ring-4 focus:ring-blue-500/30 focus:border-blue-500 outline-none resize-none shadow-inner"
                         value={editModal.value}
                         onChange={(e) =>
@@ -1041,7 +1086,7 @@ export default function InteractiveDashboard() {
               Anyone with this link can view your dashboard.
             </p>
 
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-2 rounded-xl mb-6">
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 p-2 rounded-xl mb-6 relative">
               <input
                 type="text"
                 value={shareModal.link}
@@ -1054,13 +1099,24 @@ export default function InteractiveDashboard() {
                   setIsCopied(true);
                   setTimeout(() => setIsCopied(false), 2000);
                 }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors relative ${
                   isCopied
                     ? "bg-emerald-600 text-white"
                     : "bg-slate-800 hover:bg-slate-700 text-white"
                 }`}
               >
                 {isCopied ? "Copied!" : "Copy"}
+                {/* TOOLTIP COPIED */}
+                <div
+                  className={`absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-white text-slate-900 text-xs font-bold rounded-lg transition-all duration-300 pointer-events-none whitespace-nowrap ${
+                    isCopied
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-2"
+                  }`}
+                >
+                  Link copied!
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
+                </div>
               </button>
             </div>
 
