@@ -181,12 +181,13 @@ export default function InteractiveDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!gridInstance.current) return;
+    if (!gridInstance.current || !gridRef.current) return;
     const uninitializedItems = gridRef.current.querySelectorAll(
       ".grid-stack-item:not(.gs-init)",
     );
     uninitializedItems.forEach((item) => {
-      gridInstance.current.makeWidget(item);
+      // TAMBAHKAN 'as HTMLElement' DI BARIS BAWAH INI:
+      gridInstance.current?.makeWidget(item as HTMLElement);
       item.classList.add("gs-init");
     });
   }, [widgets]);

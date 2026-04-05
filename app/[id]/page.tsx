@@ -147,7 +147,8 @@ export default function SharedDashboardView() {
       ".grid-stack-item:not(.gs-init)",
     );
     uninitializedItems.forEach((item) => {
-      gridInstance.current?.makeWidget(item);
+      // TAMBAHKAN 'as HTMLElement' DI BARIS BAWAH INI:
+      gridInstance.current?.makeWidget(item as HTMLElement);
       item.classList.add("gs-init");
     });
   }, [widgets]);
